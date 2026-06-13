@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Metal Surface Inspection — GLCM · Decision Tree</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:         #ffffff;
+    --bg2:        #f7f8fa;
+    --bg3:        #f0f2f5;
+    --border:     #e4e7ec;
+    --border2:    #d0d5dd;
+    --text:       #0f1117;
+    --text2:      #3d4350;
+    --muted:      #8a92a3;
+    --accent:     #1a56db;
+    --accent-lt:  #eff4ff;
+    --accent-md:  #c7d7fd;
+    --normal:     #027a48;
+    --normal-bg:  #ecfdf3;
+    --normal-bd:  #a6f4c5;
+    --retak:      #b42318;
+    --retak-bg:   #fff4ed;
+    --retak-bd:   #fecdca;
+    --korosi:     #b54708;
+    --korosi-bg:  #fffaeb;
+    --korosi-bd:  #fedf89;
+    --shadow-sm:  0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+    --shadow-md:  0 4px 12px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.04);
+    --shadow-lg:  0 12px 32px rgba(0,0,0,.1), 0 4px 8px rgba(0,0,0,.04);
+    --radius:     12px;
+    --radius-sm:  8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg2);
+    color: var(--text);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── TOPBAR ── */
+  .topbar {
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: var(--shadow-sm);
+  }
+  .topbar-left { display: flex; align-items: center; gap: 12px; }
+  .logo {
+    width: 32px; height: 32px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .logo svg { width: 18px; height: 18px; fill: white; }
+  .topbar-title { font-size: 14px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
+  .topbar-badge {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--accent);
+    background: var(--accent-lt);
+    border: 1px solid var(--accent-md);
+    padding: 2px 8px;
+    border-radius: 20px;
+    letter-spacing: 0.04em;
+  }
+  .topbar-right {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .status-dot {
+    width: 7px; height: 7px;
+    background: #17b26a;
+    border-radius: 50%;
+    animation: pulse-dot 2s ease infinite;
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .status-label { font-size: 12px; color: var(--muted); }
+
+  /* ── PAGE HEADER ── */
+  .page-header {
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 28px 32px 24px;
+    animation: fadeDown 0.4s ease both;
+  }
+  .page-header h1 {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+  .page-header p { font-size: 14px; color: var(--muted); line-height: 1.5; }
+  .header-pills { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  .pill {
+    font-size: 12px; font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border2);
+    color: var(--text2);
+    background: var(--bg2);
+    display: flex; align-items: center; gap: 5px;
+  }
+  .pill-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+  /* ── MAIN LAYOUT ── */
+  .workspace {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 28px 24px 48px;
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  @media (max-width: 768px) { .workspace { grid-template-columns: 1fr; } }
+
+  /* ── PANEL ── */
+  .panel {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    animation: fadeUp 0.45s ease both;
+  }
+  .panel:nth-child(2) { animation-delay: 0.05s; }
+
+  .panel-header {
+    padding: 16px 20px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .panel-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .panel-sub {
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    color: var(--muted);
+  }
+  .panel-body { padding: 20px; }
+
+  /* ── DROP ZONE ── */
+  .dropzone {
+    border: 1.5px dashed var(--border2);
+    border-radius: var(--radius-sm);
+    padding: 36px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    background: var(--bg2);
+    margin-bottom: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .dropzone::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, var(--accent-lt) 0%, transparent 60%);
+    opacity: 0;
+    transition: opacity 0.18s;
+  }
+  .dropzone:hover, .dropzone.drag {
+    border-color: var(--accent);
+    background: var(--accent-lt);
+  }
+  .dropzone:hover::before, .dropzone.drag::before { opacity: 1; }
+  .dz-icon {
+    width: 44px; height: 44px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 12px;
+    box-shadow: var(--shadow-sm);
+    position: relative; z-index: 1;
+    transition: transform 0.18s;
+  }
+  .dropzone:hover .dz-icon { transform: translateY(-2px); }
+  .dz-icon svg { width: 20px; height: 20px; }
+  .dz-title {
+    font-size: 13px; font-weight: 500;
+    color: var(--text); margin-bottom: 4px;
+    position: relative; z-index: 1;
+  }
+  .dz-sub {
+    font-size: 11px; color: var(--muted);
+    position: relative; z-index: 1;
+  }
+  #file-input { display: none; }
+
+  /* ── PREVIEW ── */
+  #preview-wrap { display: none; margin-bottom: 16px; }
+  .preview-card {
+    display: flex; gap: 12px; align-items: center;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+  }
+  #preview-img {
+    width: 52px; height: 52px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+  .preview-meta { flex: 1; overflow: hidden; }
+  .preview-name {
+    font-size: 12px; font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    color: var(--text);
+  }
+  .preview-size { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .btn-rm {
+    background: none; border: none; padding: 4px 6px;
+    color: var(--muted); cursor: pointer; border-radius: 4px;
+    font-size: 14px; line-height: 1;
+    transition: all 0.12s;
+  }
+  .btn-rm:hover { background: var(--retak-bg); color: var(--retak); }
+
+  /* ── BTN ANALYZE ── */
+  .btn-analyze {
+    width: 100%;
+    padding: 11px 16px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: -0.01em;
+    transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    box-shadow: 0 1px 3px rgba(26,86,219,.3), 0 1px 2px rgba(26,86,219,.2);
+  }
+  .btn-analyze:hover:not(:disabled) {
+    background: #1648c4;
+    box-shadow: 0 4px 12px rgba(26,86,219,.35);
+    transform: translateY(-1px);
+  }
+  .btn-analyze:active:not(:disabled) { transform: translateY(0); }
+  .btn-analyze:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+
+  /* ── CLASS INFO ── */
+  .class-info {
+    margin-top: 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+  .class-info-header {
+    padding: 8px 12px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .class-row {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .class-row:last-child { border-bottom: none; }
+  .class-tag {
+    font-weight: 600; font-size: 11px;
+    padding: 2px 8px; border-radius: 20px;
+    white-space: nowrap; flex-shrink: 0;
+  }
+  .tag-normal { background: var(--normal-bg); color: var(--normal); border: 1px solid var(--normal-bd); }
+  .tag-retak  { background: var(--retak-bg);  color: var(--retak);  border: 1px solid var(--retak-bd); }
+  .tag-korosi { background: var(--korosi-bg); color: var(--korosi); border: 1px solid var(--korosi-bd); }
+  .class-desc { color: var(--text2); line-height: 1.4; }
+
+  /* ── ERROR ── */
+  #error-box {
+    display: none;
+    margin-top: 12px;
+    padding: 10px 12px;
+    background: var(--retak-bg);
+    border: 1px solid var(--retak-bd);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    color: var(--retak);
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  /* ── LOADING ── */
+  #loading {
+    display: none;
+    padding: 48px 20px;
+    text-align: center;
+  }
+  .loader-ring {
+    width: 36px; height: 36px;
+    border: 2.5px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.75s linear infinite;
+    margin: 0 auto 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loader-steps {
+    display: flex; flex-direction: column; gap: 6px;
+    align-items: center;
+  }
+  .loader-step {
+    font-size: 12px;
+    font-family: 'DM Mono', monospace;
+    color: var(--muted);
+    transition: color 0.3s;
+  }
+  .loader-step.active { color: var(--accent); font-weight: 500; }
+
+  /* ── PLACEHOLDER ── */
+  #placeholder {
+    padding: 56px 24px;
+    text-align: center;
+  }
+  .placeholder-icon {
+    width: 56px; height: 56px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 16px;
+  }
+  .placeholder-icon svg { width: 26px; height: 26px; opacity: 0.35; }
+  .placeholder-title { font-size: 14px; font-weight: 500; color: var(--text2); margin-bottom: 6px; }
+  .placeholder-sub { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+  /* ── RESULT ── */
+  #result-panel { display: none; }
+
+  /* Result image */
+  .result-img-wrap {
+    width: 100%; height: 200px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    margin-bottom: 16px;
+    border: 1px solid var(--border);
+    background: var(--bg2);
+    position: relative;
+  }
+  #result-thumb {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: none;
+  }
+
+  /* Verdict */
+  .verdict {
+    display: flex; align-items: flex-start; gap: 14px;
+    padding: 16px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  .verdict-icon {
+    width: 40px; height: 40px; flex-shrink: 0;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+  }
+  .verdict-label {
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 3px;
+  }
+  .verdict-class {
+    font-size: 20px; font-weight: 600;
+    letter-spacing: -0.02em;
+    text-transform: capitalize;
+    margin-bottom: 4px;
+  }
+  .verdict-reason { font-size: 12px; color: var(--text2); line-height: 1.5; }
+
+  .verdict-normal { background: var(--normal-bg); border-color: var(--normal-bd); }
+  .verdict-normal .verdict-icon { background: rgba(2,122,72,.12); }
+  .verdict-normal .verdict-class { color: var(--normal); }
+  .verdict-retak  { background: var(--retak-bg);  border-color: var(--retak-bd); }
+  .verdict-retak  .verdict-icon { background: rgba(180,35,24,.12); }
+  .verdict-retak  .verdict-class { color: var(--retak); }
+  .verdict-korosi { background: var(--korosi-bg); border-color: var(--korosi-bd); }
+  .verdict-korosi .verdict-icon { background: rgba(181,71,8,.12); }
+  .verdict-korosi .verdict-class { color: var(--korosi); }
+
+  /* Section label */
+  .section-label {
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 10px;
+  }
+
+  /* Confidence */
+  .conf-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  .conf-row { display: flex; align-items: center; gap: 10px; }
+  .conf-name { font-size: 12px; font-weight: 500; color: var(--text2); width: 52px; text-transform: capitalize; }
+  .conf-bar  { flex: 1; height: 5px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+  .conf-fill { height: 100%; border-radius: 3px; transition: width 0.7s cubic-bezier(.4,0,.2,1); width: 0%; }
+  .fill-normal { background: #17b26a; }
+  .fill-retak  { background: #f04438; }
+  .fill-korosi { background: #f79009; }
+  .conf-pct  { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); width: 30px; text-align: right; }
+
+  /* Divider */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+  /* GLCM Grid */
+  .glcm-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .glcm-cell {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    transition: border-color 0.15s;
+  }
+  .glcm-cell:hover { border-color: var(--accent-md); }
+  .glcm-name {
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 5px;
+  }
+  .glcm-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 17px; font-weight: 500;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+  .glcm-bar {
+    height: 2px; background: var(--border); border-radius: 1px;
+    margin-top: 8px; overflow: hidden;
+  }
+  .glcm-bar-fill {
+    height: 100%; background: var(--accent);
+    border-radius: 1px;
+    transition: width 0.8s cubic-bezier(.4,0,.2,1);
+    width: 0%;
+  }
+
+  /* Metadata row */
+  .meta-row {
+    display: flex; gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+  .meta-chip {
+    font-size: 11px; font-family: 'DM Mono', monospace;
+    color: var(--muted);
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 3px 8px; border-radius: 4px;
+  }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  #result-panel { animation: fadeIn 0.3s ease; }
+</style>
+</head>
+<body>
+
+<!-- ── TOPBAR ── -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo">
+      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    </div>
+    <span class="topbar-title">Surface Defect Inspector</span>
+    <span class="topbar-badge">GLCM · Decision Tree</span>
+  </div>
+  <div class="topbar-right">
+    <div class="status-dot"></div>
+    <span class="status-label">Model aktif</span>
+  </div>
+</div>
+
+<!-- ── PAGE HEADER ── -->
+<div class="page-header">
+  <h1>Deteksi Cacat Permukaan Logam</h1>
+  <p>Upload gambar permukaan logam untuk diklasifikasikan menggunakan fitur tekstur GLCM dan Decision Tree.</p>
+  <div class="header-pills">
+    <div class="pill"><div class="pill-dot" style="background:#17b26a"></div> Normal</div>
+    <div class="pill"><div class="pill-dot" style="background:#f04438"></div> Retak</div>
+    <div class="pill"><div class="pill-dot" style="background:#f79009"></div> Korosi</div>
+    <div class="pill" style="border-color:var(--accent-md); color:var(--accent);">NEU Surface Defect Dataset</div>
+  </div>
+</div>
+
+<!-- ── WORKSPACE ── -->
+<div class="workspace">
+
+  <!-- LEFT: Upload -->
+  <div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Input Gambar</span>
+        <span class="panel-sub">JPG · PNG · BMP</span>
+      </div>
+      <div class="panel-body">
+
+        <div class="dropzone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+          <div class="dz-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#1a56db" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="3"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+          </div>
+          <div class="dz-title">Klik atau seret gambar ke sini</div>
+          <div class="dz-sub">Ukuran maksimum 10 MB</div>
+        </div>
+        <input type="file" id="file-input" accept="image/*">
+
+        <div id="preview-wrap">
+          <div class="preview-card">
+            <img id="preview-img" src="" alt="">
+            <div class="preview-meta">
+              <div class="preview-name" id="prev-name">—</div>
+              <div class="preview-size" id="prev-size">—</div>
+            </div>
+            <button class="btn-rm" onclick="removeFile()" title="Hapus">✕</button>
+          </div>
+        </div>
+
+        <button class="btn-analyze" id="btn-analyze" disabled onclick="doAnalyze()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          Analisis Sekarang
+        </button>
+
+        <div id="error-box" style="display:none">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span id="error-txt"></span>
+        </div>
+
+        <div class="class-info">
+          <div class="class-info-header">Kelas yang didukung</div>
+          <div class="class-row">
+            <span class="class-tag tag-normal">Normal</span>
+            <span class="class-desc">patches, rolled-in scale — permukaan homogen</span>
+          </div>
+          <div class="class-row">
+            <span class="class-tag tag-retak">Retak</span>
+            <span class="class-desc">crazing, scratches — pola garis tajam</span>
+          </div>
+          <div class="class-row">
+            <span class="class-tag tag-korosi">Korosi</span>
+            <span class="class-desc">inclusion, pitted surface — tekstur tidak merata</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Result -->
+  <div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Hasil Analisis</span>
+        <span class="panel-sub" id="result-filename">—</span>
+      </div>
+      <div class="panel-body">
+
+        <!-- Loading -->
+        <div id="loading">
+          <div class="loader-ring"></div>
+          <div class="loader-steps">
+            <div class="loader-step" id="ls1">Memuat gambar...</div>
+            <div class="loader-step" id="ls2">Mengekstrak fitur GLCM...</div>
+            <div class="loader-step" id="ls3">Menjalankan Decision Tree...</div>
+            <div class="loader-step" id="ls4">Menghasilkan hasil klasifikasi...</div>
+          </div>
+        </div>
+
+        <!-- Placeholder -->
+        <div id="placeholder">
+          <div class="placeholder-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="3"/>
+              <path d="M9 9h6M9 12h6M9 15h4"/>
+            </svg>
+          </div>
+          <div class="placeholder-title">Belum ada hasil</div>
+          <div class="placeholder-sub">Upload gambar permukaan logam dan<br>klik "Analisis Sekarang" untuk mulai.</div>
+        </div>
+
+        <!-- Result -->
+        <div id="result-panel">
+
+          <div class="result-img-wrap">
+            <img id="result-thumb" src="" alt="">
+          </div>
+
+          <!-- Verdict card -->
+          <div class="verdict" id="verdict-card">
+            <div class="verdict-icon" id="verdict-icon">—</div>
+            <div>
+              <div class="verdict-label">Hasil Klasifikasi</div>
+              <div class="verdict-class" id="verdict-class">—</div>
+              <div class="verdict-reason" id="verdict-reason">—</div>
+            </div>
+          </div>
+
+          <!-- Confidence -->
+          <div class="section-label">Probabilitas Kelas</div>
+          <div class="conf-list" id="conf-list"></div>
+
+          <hr class="divider">
+
+          <!-- GLCM Features -->
+          <div class="section-label">Fitur Tekstur GLCM</div>
+          <div class="glcm-grid" id="glcm-grid"></div>
+
+          <!-- Meta -->
+          <div class="meta-row">
+            <span class="meta-chip">d=1</span>
+            <span class="meta-chip">θ: 0°·45°·90°·135°</span>
+            <span class="meta-chip">levels=16</span>
+            <span class="meta-chip">128×128 px</span>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div><!-- /workspace -->
+
+<script>
+const dropZone  = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+let selectedFile = null;
+
+// Drag & drop
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+
+function handleFile(file) {
+  if (!file.type.startsWith('image/')) { showError('File harus berupa gambar.'); return; }
+  if (file.size > 10 * 1024 * 1024)   { showError('Ukuran file maksimum 10 MB.'); return; }
+  hideError();
+  selectedFile = file;
+  document.getElementById('prev-name').textContent = file.name;
+  document.getElementById('prev-size').textContent = (file.size/1024).toFixed(1) + ' KB';
+  const reader = new FileReader();
+  reader.onload = e => { document.getElementById('preview-img').src = e.target.result; };
+  reader.readAsDataURL(file);
+  document.getElementById('preview-wrap').style.display = 'block';
+  document.getElementById('btn-analyze').disabled = false;
+  resetResult();
+}
+
+function removeFile() {
+  selectedFile = null; fileInput.value = '';
+  document.getElementById('preview-wrap').style.display = 'none';
+  document.getElementById('btn-analyze').disabled = true;
+  resetResult(); hideError();
+}
+
+function resetResult() {
+  document.getElementById('result-panel').style.display  = 'none';
+  document.getElementById('placeholder').style.display   = 'block';
+  document.getElementById('loading').style.display       = 'none';
+  document.getElementById('result-filename').textContent = '—';
+}
+
+// Loader step animator
+let loadTimer, loadStep = 0;
+const steps = ['ls1','ls2','ls3','ls4'];
+function setLoading(on) {
+  document.getElementById('loading').style.display     = on ? 'block' : 'none';
+  document.getElementById('placeholder').style.display = on ? 'none'  : 'block';
+  document.getElementById('result-panel').style.display = 'none';
+  document.getElementById('btn-analyze').disabled = on;
+  if (on) {
+    loadStep = 0;
+    steps.forEach(id => document.getElementById(id).classList.remove('active'));
+    document.getElementById('ls1').classList.add('active');
+    loadTimer = setInterval(() => {
+      steps.forEach(id => document.getElementById(id).classList.remove('active'));
+      loadStep = (loadStep + 1) % steps.length;
+      document.getElementById(steps[loadStep]).classList.add('active');
+    }, 900);
+  } else { clearInterval(loadTimer); }
+}
+
+async function doAnalyze() {
+  if (!selectedFile) return;
+  hideError(); resetResult(); setLoading(true);
+
+  const fd = new FormData();
+  fd.append('image', selectedFile);
+
+  try {
+    const resp = await fetch('/analyze', { method: 'POST', body: fd });
+    const data = await resp.json();
+    if (data.error) { setLoading(false); showError(data.error); return; }
+    setLoading(false);
+    renderResult(data);
+  } catch(err) {
+    setLoading(false);
+    showError('Koneksi ke server gagal. Pastikan Flask sudah berjalan.');
+  }
+}
+
+const VERDICT_ICONS = { normal: '✓', retak: '⚡', korosi: '◉' };
+
+function renderResult(d) {
+  document.getElementById('placeholder').style.display  = 'none';
+  document.getElementById('loading').style.display      = 'none';
+  document.getElementById('result-panel').style.display = 'block';
+  document.getElementById('result-filename').textContent = d.filename || '—';
+
+  // Thumbnail
+  const thumb = document.getElementById('result-thumb');
+  thumb.src = d.thumbnail; thumb.style.display = 'block';
+
+  // Verdict
+  const kls = d.kelas;
+  const card = document.getElementById('verdict-card');
+  card.className = 'verdict verdict-' + kls;
+  document.getElementById('verdict-icon').textContent = VERDICT_ICONS[kls] || '?';
+  document.getElementById('verdict-class').textContent = kls.charAt(0).toUpperCase() + kls.slice(1);
+  document.getElementById('verdict-reason').textContent = d.alasan;
+
+  // Confidence
+  const confList = document.getElementById('conf-list');
+  confList.innerHTML = '';
+  ['normal','retak','korosi'].forEach(cls => {
+    const pct = d.confidence[cls] || 0;
+    confList.innerHTML += `
+      <div class="conf-row">
+        <div class="conf-name">${cls}</div>
+        <div class="conf-bar">
+          <div class="conf-fill fill-${cls}" data-w="${pct}"></div>
+        </div>
+        <div class="conf-pct">${pct}%</div>
+      </div>`;
+  });
+  setTimeout(() => {
+    confList.querySelectorAll('.conf-fill').forEach(el => {
+      el.style.width = el.dataset.w + '%';
+    });
+  }, 60);
+
+  // GLCM
+  const glcmGrid = document.getElementById('glcm-grid');
+  const feats = [
+    { key: 'contrast',    label: 'Contrast'     },
+    { key: 'homogeneity', label: 'Homogeneity'  },
+    { key: 'energy',      label: 'Energy'       },
+    { key: 'correlation', label: 'Correlation'  },
+  ];
+  // Normalize values for bar width display
+  const vals = feats.map(f => parseFloat(d.glcm[f.key] || 0));
+  const maxVal = Math.max(...vals.map(Math.abs), 0.0001);
+
+  glcmGrid.innerHTML = feats.map((f, i) => {
+    const v = vals[i];
+    const barW = Math.min(100, Math.abs(v) / maxVal * 100);
+    return `
+      <div class="glcm-cell">
+        <div class="glcm-name">${f.label}</div>
+        <div class="glcm-val">${v.toFixed(4)}</div>
+        <div class="glcm-bar"><div class="glcm-bar-fill" data-w="${barW}"></div></div>
+      </div>`;
+  }).join('');
+
+  setTimeout(() => {
+    glcmGrid.querySelectorAll('.glcm-bar-fill').forEach(el => {
+      el.style.width = el.dataset.w + '%';
+    });
+  }, 80);
+}
+
+function showError(msg) {
+  const box = document.getElementById('error-box');
+  document.getElementById('error-txt').textContent = msg;
+  box.style.display = 'flex';
+}
+function hideError() { document.getElementById('error-box').style.display = 'none'; }
+</script>
+</body>
+</html>
